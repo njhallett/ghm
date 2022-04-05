@@ -11,6 +11,8 @@ config="$config_dir/$config_file"
 command -v argc >/dev/null 2>&1 || { echo >&2 "I require argc but it's not installed.  Aborting."; exit 1; }
 command -v jq >/dev/null 2>&1 || { echo >&2 "I require jq but it's not installed.  Aborting."; exit 1; }
 command -v gh >/dev/null 2>&1 || { echo >&2 "I require gh but it's not installed.  Aborting."; exit 1; }
+command -v sudo >/dev/null 2>&1 || { echo >&2 "I require sudo but it's not installed.  Aborting."; exit 1; }
+command -v sponge >/dev/null 2>&1 || { echo >&2 "I require sponge but it's not installed.  Aborting."; exit 1; }
 
 _ghm_arch() {
     case $(uname -m) in
@@ -70,14 +72,16 @@ list() {
 
 # @cmd install app
 # @alias i
-# @arg repo!
+# @flag -n --dryrun    don't actually install
+# @arg repo!            github <owner/repo> to download from
 install() {
-    readarray -t pkgs < <(gh release view --repo $argc_repo --json name,assets --jq '.assets.[].name' | grep "$(_ghm_arch)\.$(_ghm_pkg)$")
+    readarray -t pkgs < <(gh release view --repo $argc_repo --json assets --jq '.assets.[].name' | grep "$(_ghm_arch)\.$(_ghm_pkg)$")
 
     case ${#pkgs[@]} in
 
         0)
             echo "No matches found"
+            exit 1
             ;;
         1)
             sel=0
@@ -103,7 +107,35 @@ install() {
             ;;
     esac
 
-    echo ${pkgs[$sel]}
+    echo "${pkgs[$sel]}"
+
+    if [ ! $argc_dryrun ]; then
+
+        if [ -f "${pkgs[$sel]}" ]; then
+            echo "file already downloaded"
+        else
+            gh release download --repo "$argc_repo" --pattern "${pkgs[$sel]}"
+        fi
+
+        case $(_ghm_pkg) in
+
+            rpm)
+                ver=`rpm --queryformat="%{VERSION}" -qp ${pkgs[$sel]}`
+                name=`rpm --queryformat="%{NAME}" -qp ${pkgs[$sel]}`
+                sudo dnf install "./${pkgs[$sel]}"
+                ;;
+            *)
+                echo "Unknown install method"
+                exit 1
+                ;;
+        esac
+
+        if [ $? -ne 0 ]; then
+            exit 1
+        fi
+
+        jq --arg repo $argc_repo --arg ver $ver --arg name $name '.apps[.apps | length] += {"name": $name, "repo": $repo, "version": $ver}' "$config" | sponge "$config"
+    fi
 }
 
 eval "$(argc $0 "$@")"
