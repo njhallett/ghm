@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# @version 0.0.2
+# @version 0.0.3
 # @author Niall Hallett <njhallett@gmail.com>
 # @describe Manage github distro package release installs
 
