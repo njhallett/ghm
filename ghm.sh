@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# @version 0.0.3
+# @version 0.0.4
 # @author Niall Hallett <njhallett@gmail.com>
 # @describe Manage github distro package release installs
 
@@ -55,11 +55,12 @@ _ghm_pkg() {
 }
 
 if [ ! -f "$config" ]; then
+
     if [ ! -d "$config_dir" ]; then
         mkdir -p "$config_dir"
     fi
 
-    touch "$config"
+    echo '{"apps":[]}' >"$config"
 fi
 
 # @cmd list installed apps
@@ -122,7 +123,12 @@ install() {
             rpm)
                 ver=`rpm --queryformat="%{VERSION}" -qp ${pkgs[$sel]}`
                 name=`rpm --queryformat="%{NAME}" -qp ${pkgs[$sel]}`
-                sudo dnf install "./${pkgs[$sel]}"
+                sudo dnf -y install "./${pkgs[$sel]}"
+                ;;
+            deb)
+                ver=`dpkg --info ${pkgs[$sel]} | grep "^ Version: " | cut -d ' ' -f 3`
+                name=`dpkg --info ${pkgs[$sel]} | grep "^ Package: " | cut -d ' ' -f 3`
+                sudo apt install "./${pkgs[$sel]}"
                 ;;
             *)
                 echo "Unknown install method"
@@ -131,6 +137,11 @@ install() {
         esac
 
         if [ $? -ne 0 ]; then
+            exit 1
+        fi
+
+        if [[ -z "$ver" || -z "$name" ]]; then
+            echo "Name and/or version couldn't be determined"
             exit 1
         fi
 
