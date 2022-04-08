@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# @version 0.0.4
+# @version 0.0.5
 # @author Niall Hallett <njhallett@gmail.com>
 # @describe Manage github distro package release installs
 
@@ -129,6 +129,11 @@ install() {
                 ver=`dpkg --info ${pkgs[$sel]} | grep "^ Version: " | cut -d ' ' -f 3`
                 name=`dpkg --info ${pkgs[$sel]} | grep "^ Package: " | cut -d ' ' -f 3`
                 sudo apt install "./${pkgs[$sel]}"
+                ;;
+            apk)
+                ver=`gh release view --repo "$argc_repo" --json name --jq '.name' | sed 's/^v//'`
+                name=`echo "$argc_repo" | cut -d '/' -f 2`
+                sudo apk add --allow-untrusted "./${pkgs[$sel]}"
                 ;;
             *)
                 echo "Unknown install method"
