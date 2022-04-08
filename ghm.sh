@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# @version 0.0.5
+# @version 0.0.6
 # @author Niall Hallett <njhallett@gmail.com>
 # @describe Manage github distro package release installs
 
@@ -121,18 +121,12 @@ install() {
         case $(_ghm_pkg) in
 
             rpm)
-                ver=`rpm --queryformat="%{VERSION}" -qp ${pkgs[$sel]}`
-                name=`rpm --queryformat="%{NAME}" -qp ${pkgs[$sel]}`
                 sudo dnf -y install "./${pkgs[$sel]}"
                 ;;
             deb)
-                ver=`dpkg --info ${pkgs[$sel]} | grep "^ Version: " | cut -d ' ' -f 3`
-                name=`dpkg --info ${pkgs[$sel]} | grep "^ Package: " | cut -d ' ' -f 3`
                 sudo apt install "./${pkgs[$sel]}"
                 ;;
             apk)
-                ver=`gh release view --repo "$argc_repo" --json name --jq '.name' | sed 's/^v//'`
-                name=`echo "$argc_repo" | cut -d '/' -f 2`
                 sudo apk add --allow-untrusted "./${pkgs[$sel]}"
                 ;;
             *)
@@ -145,6 +139,9 @@ install() {
             exit 1
         fi
 
+        ver=`gh release view --repo "$argc_repo" --json name --jq '.name'`
+        name=`echo "$argc_repo" | cut -d '/' -f 2`
+
         if [[ -z "$ver" || -z "$name" ]]; then
             echo "Name and/or version couldn't be determined"
             exit 1
@@ -152,6 +149,27 @@ install() {
 
         jq --arg repo $argc_repo --arg ver $ver --arg name $name '.apps[.apps | length] += {"name": $name, "repo": $repo, "version": $ver}' "$config" | sponge "$config"
     fi
+}
+
+# @cmd update installed apps
+# @alias u
+update() {
+    readarray -t pkgs < <(jq -c '.apps[] | [.name,.repo,.version]' "$config" | sed 's/[]["]//g')
+
+    OIFS=$IFS
+    IFS=','
+
+    for i in ${!pkgs[@]}; do
+        read -ra field <<< "${pkgs[$i]}"
+        ver=`gh release view --repo "${field[1]}" --json name --jq '.name'`
+
+        if [ ! ${field[2]} = "$ver" ]; then
+            echo "${field[0]} ${field[2]} -> $ver"
+        fi
+
+    done
+
+    IFS=$OIFS
 }
 
 eval "$(argc $0 "$@")"
