@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# @version 0.0.7
+# @version 0.0.8
 # @author Niall Hallett <njhallett@gmail.com>
 # @describe Manage github distro package release installs
 
@@ -162,27 +162,50 @@ install() {
 # @cmd update installed apps
 # @alias u
 # @flag -n --dryrun    don't actually install
+# @arg name            specific package to update
 update() {
-    readarray -t pkgs < <(jq -c '.apps[] | [.name,.repo,.version]' "$config" | sed 's/[]["]//g')
-
-    update_repo=()
-    update_name=()
-    update_ver=()
+    local update_repo=()
+    local update_name=()
+    local update_ver=()
     OIFS=$IFS
     IFS=','
 
-    for i in ${!pkgs[@]}; do
-        read -ra field <<< "${pkgs[$i]}"
-        ver=`gh release view --repo "${field[1]}" --json name --jq '.name'`
+    if [ -z $argc_name ]; then
+        readarray -t pkgs < <(jq -c '.apps[] | [.name,.repo,.version]' "$config" | sed 's/[]["]//g')
 
-        if [ ! ${field[2]} = "$ver" ]; then
-            echo "${field[0]} ${field[2]} -> $ver"
-            update_repo+=${field[1]}
-            update_name+=${field[0]}
-            update_ver+=$ver
+        for i in ${!pkgs[@]}; do
+            read -ra field <<< "${pkgs[$i]}"
+            local _update_ver=`gh release view --repo "${field[1]}" --json name --jq '.name'`
+
+            if [ ! ${field[2]} = "$ver" ]; then
+                echo "${field[0]} ${field[2]} -> $_update_ver"
+                update_repo+=${field[1]}
+                update_name+=${field[0]}
+                update_ver+=$_update_ver
+            fi
+
+        done
+
+    else
+        local _pkg_repo=`jq --arg name "$argc_name" '.apps[] | select(.name == $name).repo' "$config" | sed 's/"//g'`
+        local _pkg_ver=`jq --arg name "$argc_name" '.apps[] | select(.name == $name).version' "$config" | sed 's/"//g'`
+
+        if [ ! -z "$_pkg_repo" ]; then
+            local _update_ver=`gh release view --repo "$_pkg_repo" --json name --jq '.name'`
+
+            if [ ! "$_pkg_ver" = "$_update_ver" ]; then
+                echo "$argc_name $_pkg_ver -> $_update_ver"
+                update_repo+=$_pkg_repo
+                update_name+=$argc_name
+                update_ver+=$_update_ver
+            fi
         fi
 
-    done
+    fi
+
+    if [ ${#update_repo[@]} -eq 0 ]; then
+        exit 0
+    fi
 
     IFS=$OIFS
 
