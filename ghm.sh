@@ -263,7 +263,7 @@ remove() {
         exit 1
     fi
 
-    jq --arg name "$argc_name" 'del().apps[] | select(.name == $name))' "$config" | sponge "$config"
+    jq --arg name "$argc_name" 'del(.apps[] | select(.name == $name))' "$config" | sponge "$config"
 }
 
 eval "$(argc $0 "$@")"
