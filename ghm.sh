@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# @version 0.0.8
+# @version 0.0.9
 # @author Niall Hallett <njhallett@gmail.com>
 # @describe Manage github distro package release installs
 
@@ -110,7 +110,7 @@ _ghm_install() {
                 sudo apk add --allow-untrusted "./${pkgs[$sel]}"
                 ;;
             *)
-                echo "Unknown install method"
+                echo "Unknown package manager"
                 return 1
                 ;;
         esac
@@ -228,6 +228,42 @@ update() {
 
         jq --arg ver ${update_ver[$i]} --arg name ${update_name[$i]} '(.apps[] | select(.name == $name)).version |= $ver' "$config" | sponge "$config"
     done
+}
+
+# @cmd remove app
+# @alias r
+# @arg name!           package to remove
+remove() {
+    local _pkg_repo=`jq --arg name "$argc_name" '.apps[] | select(.name == $name).repo' "$config" | sed 's/"//g'`
+
+    if [ -z "$_pkg_repo" ]; then
+        echo "package not configured"
+        exit 1
+    fi
+
+    case $(_ghm_pkg) in
+
+        rpm)
+            sudo dnf remove "$argc_name"
+            ;;
+        deb)
+            sudo apt remove "$argc_name"
+            ;;
+        apk)
+            sudo apk del "$argc_name"
+            ;;
+        *)
+            echo "Unknown package manager"
+            exit 1
+            ;;
+    esac
+
+    if [ $? -ne 0 ]; then
+        echo "Remove failed"
+        exit 1
+    fi
+
+    jq --arg name "$argc_name" 'del().apps[] | select(.name == $name))' "$config" | sponge "$config"
 }
 
 eval "$(argc $0 "$@")"
