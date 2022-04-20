@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# @version 0.0.9
+# @version 0.0.10
 # @author Niall Hallett <njhallett@gmail.com>
 # @describe Manage github distro package release installs
 
@@ -177,7 +177,7 @@ update() {
             read -ra field <<< "${pkgs[$i]}"
             local _update_ver=`gh release view --repo "${field[1]}" --json name --jq '.name'`
 
-            if [ ! ${field[2]} = "$ver" ]; then
+            if [[ ${field[2]} != "$_update_ver" ]]; then
                 echo "${field[0]} ${field[2]} -> $_update_ver"
                 update_repo+=${field[1]}
                 update_name+=${field[0]}
@@ -190,7 +190,7 @@ update() {
         local _pkg_repo=`jq --arg name "$argc_name" '.apps[] | select(.name == $name).repo' "$config" | sed 's/"//g'`
         local _pkg_ver=`jq --arg name "$argc_name" '.apps[] | select(.name == $name).version' "$config" | sed 's/"//g'`
 
-        if [ ! -z "$_pkg_repo" ]; then
+        if [ -n "$_pkg_repo" ]; then
             local _update_ver=`gh release view --repo "$_pkg_repo" --json name --jq '.name'`
 
             if [ ! "$_pkg_ver" = "$_update_ver" ]; then
