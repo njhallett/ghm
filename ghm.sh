@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# @version 0.0.10
+# @version 0.0.11
 # @author Niall Hallett <njhallett@gmail.com>
 # @describe Manage github distro package release installs
 
@@ -14,7 +14,7 @@ command -v gh >/dev/null 2>&1 || { echo >&2 "I require gh but it's not installed
 command -v sudo >/dev/null 2>&1 || { echo >&2 "I require sudo but it's not installed.  Aborting."; exit 1; }
 command -v sponge >/dev/null 2>&1 || { echo >&2 "I require sponge but it's not installed.  Aborting."; exit 1; }
 
-_ghm_arch() {
+function _ghm_arch {
     local _ghm_arch=''
 
     case $(uname -m) in
@@ -32,10 +32,11 @@ _ghm_arch() {
     echo "$_ghm_arch"
 }
 
-_ghm_pkg() {
+function _ghm_pkg {
     local _ghm_pkg=''
 
-    . /etc/os-release
+    # shellcheck disable=SC1091
+    source /etc/os-release
 
     case $ID in
         fedora)
@@ -52,11 +53,11 @@ _ghm_pkg() {
     echo "$_ghm_pkg"
 }
 
-_ghm_install() {
+function _ghm_install {
     local _ghm_install_repo=$1
     local _ghm_install_dryrun=$2
 
-    readarray -t pkgs < <(gh release view --repo $_ghm_install_repo --json assets --jq '.assets.[].name' | grep "$(_ghm_arch)\.$(_ghm_pkg)$")
+    readarray -t pkgs < <(gh release view --repo "$_ghm_install_repo" --json assets --jq '.assets.[].name' | grep "$(_ghm_arch)\.$(_ghm_pkg)$")
 
     case ${#pkgs[@]} in
 
@@ -69,30 +70,32 @@ _ghm_install() {
             ;;
         *)
             echo; echo "Multiple matches found, please select one:"; echo
+            declare -i i
 
-            for i in ${!pkgs[@]}; do
+            for i in "${!pkgs[@]}"; do
                 echo " [$i] ${pkgs[$i]}"
             done
 
             sel=-1
 
-            while [ $sel -eq -1 ]; do
-                read -p " Select an option: " sel
+            while [[ $sel -eq -1 ]]; do
+                read -rp " Select an option: " sel
 
-                if ! [[ "$sel" =~ [0-${!pkgs[@]}] ]]; then
+                if ! [[ "$sel" =~ [${!pkgs[*]}] ]]; then
                     echo 'Invalid option'
                     sel=-1
                     continue
                 fi
+
             done
             ;;
     esac
 
     echo "${pkgs[$sel]}"
 
-    if [ ! $_ghm_install_dryrun ]; then
+    if [[ -z "$_ghm_install_dryrun" ]]; then
 
-        if [ -f "${pkgs[$sel]}" ]; then
+        if [[ -f "${pkgs[$sel]}" ]]; then
             echo "file already downloaded"
         else
             gh release download --repo "$_ghm_install_repo" --pattern "${pkgs[$sel]}"
@@ -119,9 +122,9 @@ _ghm_install() {
     fi
 }
 
-if [ ! -f "$config" ]; then
+if [[ ! -f "$config" ]]; then
 
-    if [ ! -d "$config_dir" ]; then
+    if [[ ! -d "$config_dir" ]]; then
         mkdir -p "$config_dir"
     fi
 
@@ -130,9 +133,9 @@ fi
 
 # @cmd list installed apps
 # @alias l
-list() {
+function list {
     echo
-    cat "$config" | jq -r '["Name","Version","Repo"], (.apps | .[] | [.name, .version, .repo]) | @tsv' | column -t
+    jq -r '["Name","Version","Repo"], (.apps | .[] | [.name, .version, .repo]) | @tsv' "$config" | column -t
     echo
 }
 
@@ -140,77 +143,83 @@ list() {
 # @alias i
 # @flag -n --dryrun    don't actually install
 # @arg repo!            github <owner/repo> to download from
-install() {
-    _ghm_install $argc_repo $argc_dryrun
+function install {
 
-    if [ $? -ne 0 ]; then
+    # shellcheck disable=SC2154
+    if ! _ghm_install "$argc_repo" "$argc_dryrun"; then
         echo "Install failed"
         exit 1
     fi
 
-    ver=`gh release view --repo "$argc_repo" --json name --jq '.name'`
-    name=`echo "$argc_repo" | cut -d '/' -f 2`
+    ver=$(gh release view --repo "$argc_repo" --json name --jq '.name')
+    name=$(echo "$argc_repo" | cut -d '/' -f 2)
 
     if [[ -z "$ver" || -z "$name" ]]; then
         echo "Name and/or version couldn't be determined"
         exit 1
     fi
 
-    jq --arg repo $argc_repo --arg ver $ver --arg name $name '.apps[.apps | length] += {"name": $name, "repo": $repo, "version": $ver}' "$config" | sponge "$config"
+    [[ -n "$argc_dryrun" ]] && exit 0
+
+    jq --arg repo "$argc_repo" --arg ver "$ver" --arg name "$name" '.apps[.apps | length] += {"name": $name, "repo": $repo, "version": $ver}' "$config" | sponge "$config"
 }
 
 # @cmd update installed apps
 # @alias u
 # @flag -n --dryrun    don't actually install
 # @arg name            specific package to update
-update() {
-    local update_repo=()
-    local update_name=()
-    local update_ver=()
+function update {
+    declare -a update_repo
+    declare -a update_name
+    declare -a update_ver
     OIFS=$IFS
     IFS=','
 
-    if [ -z $argc_name ]; then
+    if [[ -z "$argc_name" ]]; then
         readarray -t pkgs < <(jq -c '.apps[] | [.name,.repo,.version]' "$config" | sed 's/[]["]//g')
 
-        for i in ${!pkgs[@]}; do
+        for i in "${!pkgs[@]}"; do
             read -ra field <<< "${pkgs[$i]}"
-            local _update_ver=`gh release view --repo "${field[1]}" --json name --jq '.name'`
+            local _update_ver
+            _update_ver=$(gh release view --repo "${field[1]}" --json name --jq '.name')
 
             if [[ ${field[2]} != "$_update_ver" ]]; then
                 echo "${field[0]} ${field[2]} -> $_update_ver"
-                update_repo+=${field[1]}
-                update_name+=${field[0]}
-                update_ver+=$_update_ver
+                update_repo+=( "${field[1]}" )
+                update_name+=( "${field[0]}" )
+                update_ver+=( "$_update_ver" )
             fi
 
         done
 
     else
-        local _pkg_repo=`jq --arg name "$argc_name" '.apps[] | select(.name == $name).repo' "$config" | sed 's/"//g'`
-        local _pkg_ver=`jq --arg name "$argc_name" '.apps[] | select(.name == $name).version' "$config" | sed 's/"//g'`
+        local _pkg_repo
+        local _pkg_ver
+        _pkg_repo=$(jq --arg name "$argc_name" '.apps[] | select(.name == $name).repo' "$config" | sed 's/"//g')
+        _pkg_ver=$(jq --arg name "$argc_name" '.apps[] | select(.name == $name).version' "$config" | sed 's/"//g')
 
-        if [ -n "$_pkg_repo" ]; then
-            local _update_ver=`gh release view --repo "$_pkg_repo" --json name --jq '.name'`
+        if [[ -n "$_pkg_repo" ]]; then
+            local _update_ver
+            _update_ver=$(gh release view --repo "$_pkg_repo" --json name --jq '.name')
 
-            if [ ! "$_pkg_ver" = "$_update_ver" ]; then
+            if [[ "$_pkg_ver" != "$_update_ver" ]]; then
                 echo "$argc_name $_pkg_ver -> $_update_ver"
-                update_repo+=$_pkg_repo
-                update_name+=$argc_name
-                update_ver+=$_update_ver
+                update_repo+=( "$_pkg_repo" )
+                update_name+=( "$argc_name" )
+                update_ver+=( "$_update_ver" )
             fi
         fi
 
     fi
 
+    IFS=$OIFS
+
     if [ ${#update_repo[@]} -eq 0 ]; then
         exit 0
     fi
 
-    IFS=$OIFS
-
     while true; do
-        read -p "Do you want to continue? [y/n] " yn
+        read -rp "Do you want to continue? [y/n] " yn
         case $yn in
             [Yy]* ) break;;
             [Nn]* ) exit 1;;
@@ -218,25 +227,30 @@ update() {
         esac
     done
 
-    for i in ${!update_repo[@]}; do
-        _ghm_install ${update_repo[$i]} $argc_dryrun
+    declare -i i
 
-        if [ $? -ne 0 ]; then
+    for i in "${!update_repo[@]}"; do
+
+        if ! _ghm_install "${update_repo[$i]}" "$argc_dryrun"; then
             echo "Update failed"
             continue
         fi
 
-        jq --arg ver ${update_ver[$i]} --arg name ${update_name[$i]} '(.apps[] | select(.name == $name)).version |= $ver' "$config" | sponge "$config"
+        [[ -n "$argc_dryrun" ]] && continue
+
+        jq --arg ver "${update_ver[$i]}" --arg name "${update_name[$i]}" '(.apps[] | select(.name == $name)).version |= $ver' "$config" | sponge "$config"
     done
 }
 
 # @cmd remove app
 # @alias r
 # @arg name!           package to remove
-remove() {
-    local _pkg_repo=`jq --arg name "$argc_name" '.apps[] | select(.name == $name).repo' "$config" | sed 's/"//g'`
+function remove {
+    local _pkg_repo
 
-    if [ -z "$_pkg_repo" ]; then
+    _pkg_repo=$(jq --arg name "$argc_name" '.apps[] | select(.name == $name).repo' "$config" | sed 's/"//g')
+
+    if [[ -z "$_pkg_repo" ]]; then
         echo "package not configured"
         exit 1
     fi
@@ -258,7 +272,8 @@ remove() {
             ;;
     esac
 
-    if [ $? -ne 0 ]; then
+    # shellcheck disable=SC2181
+    if [[ $? -ne 0 ]]; then
         echo "Remove failed"
         exit 1
     fi
@@ -266,4 +281,4 @@ remove() {
     jq --arg name "$argc_name" 'del(.apps[] | select(.name == $name))' "$config" | sponge "$config"
 }
 
-eval "$(argc $0 "$@")"
+eval "$(argc "$0" "$@")"
