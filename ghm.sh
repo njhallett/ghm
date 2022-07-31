@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# @version 0.0.11
+# @version 0.0.12
 # @author Niall Hallett <njhallett@gmail.com>
 # @describe Manage github distro package release installs
 
@@ -281,4 +281,4 @@ function remove {
     jq --arg name "$argc_name" 'del(.apps[] | select(.name == $name))' "$config" | sponge "$config"
 }
 
-eval "$(argc "$0" "$@")"
+eval $(argc --argc-eval "$0" "$@")
