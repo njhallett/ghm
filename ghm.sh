@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# @version 0.0.12
+# @version 0.0.13
 # @author Niall Hallett <njhallett@gmail.com>
 # @describe Manage github distro package release installs
 
@@ -56,8 +56,13 @@ function _ghm_pkg {
 function _ghm_install {
     local _ghm_install_repo=$1
     local _ghm_install_dryrun=$2
+    local _ghm_install_all=$3
 
-    readarray -t pkgs < <(gh release view --repo "$_ghm_install_repo" --json assets --jq '.assets.[].name' | grep "$(_ghm_arch)\.$(_ghm_pkg)$")
+    if [[ -z "$_ghm_install_all" ]]; then
+        readarray -t pkgs < <(gh release view --repo "$_ghm_install_repo" --json assets --jq '.assets.[].name' | grep "$(_ghm_arch)\.$(_ghm_pkg)$")
+    else
+        readarray -t pkgs < <(gh release view --repo "$_ghm_install_repo" --json assets --jq '.assets.[].name')
+    fi
 
     case ${#pkgs[@]} in
 
@@ -142,11 +147,12 @@ function list {
 # @cmd install app
 # @alias i
 # @flag -n --dryrun    don't actually install
-# @arg repo!            github <owner/repo> to download from
+# @flag -a --all       show all download options
+# @arg repo!           github <owner/repo> to download from
 function install {
 
     # shellcheck disable=SC2154
-    if ! _ghm_install "$argc_repo" "$argc_dryrun"; then
+    if ! _ghm_install "$argc_repo" "$argc_dryrun" "$argc_all"; then
         echo "Install failed"
         exit 1
     fi
@@ -167,6 +173,7 @@ function install {
 # @cmd update installed apps
 # @alias u
 # @flag -n --dryrun    don't actually install
+# @flag -a --all       show all download options
 # @arg name            specific package to update
 function update {
     declare -a update_repo
@@ -231,7 +238,7 @@ function update {
 
     for i in "${!update_repo[@]}"; do
 
-        if ! _ghm_install "${update_repo[$i]}" "$argc_dryrun"; then
+        if ! _ghm_install "${update_repo[$i]}" "$argc_dryrun" "$argc_all"; then
             echo "Update failed"
             continue
         fi
@@ -281,4 +288,4 @@ function remove {
     jq --arg name "$argc_name" 'del(.apps[] | select(.name == $name))' "$config" | sponge "$config"
 }
 
-eval $(argc --argc-eval "$0" "$@")
+eval "$(argc --argc-eval "$0" "$@")"
