@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# @version 0.0.13
+# @version 0.0.14
 # @author Niall Hallett <njhallett@gmail.com>
 # @describe Manage github distro package release installs
 
@@ -19,7 +19,7 @@ function _ghm_arch {
 
     case $(uname -m) in
         x86_64)
-            _ghm_arch="\(amd64\|x86_64\)"
+            _ghm_arch="\(amd64\|x86_64\|64bit\)"
             ;;
         i*86)
             _ghm_arch=386
@@ -150,6 +150,12 @@ function list {
 # @flag -a --all       show all download options
 # @arg repo!           github <owner/repo> to download from
 function install {
+
+    # shellcheck disable=SC2154
+    if [[ $(expr "$argc_repo" : '^[[:alnum:]\._-]\+/[[:alnum:]\._-]\+$') -eq 0 ]]; then
+        echo "Invalid repo"
+        exit 1
+    fi
 
     # shellcheck disable=SC2154
     if ! _ghm_install "$argc_repo" "$argc_dryrun" "$argc_all"; then
