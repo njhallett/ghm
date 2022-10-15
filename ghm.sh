@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# @version 0.0.14
+# @version 0.0.15
 # @author Niall Hallett <njhallett@gmail.com>
 # @describe Manage github distro package release installs
 
@@ -163,7 +163,7 @@ function install {
         exit 1
     fi
 
-    ver=$(gh release view --repo "$argc_repo" --json name --jq '.name')
+    ver=$(gh release list --repo "$argc_repo" --exclude-drafts | grep "Latest" | rev | cut -f 2 | rev)
     name=$(echo "$argc_repo" | cut -d '/' -f 2)
 
     if [[ -z "$ver" || -z "$name" ]]; then
@@ -194,7 +194,7 @@ function update {
         for i in "${!pkgs[@]}"; do
             read -ra field <<< "${pkgs[$i]}"
             local _update_ver
-            _update_ver=$(gh release view --repo "${field[1]}" --json name --jq '.name')
+            _update_ver=$(gh release list --repo "${field[1]}" --exclude-drafts | grep "Latest" | rev | cut -f 2 | rev)
 
             if [[ ${field[2]} != "$_update_ver" ]]; then
                 echo "${field[0]} ${field[2]} -> $_update_ver"
@@ -213,7 +213,7 @@ function update {
 
         if [[ -n "$_pkg_repo" ]]; then
             local _update_ver
-            _update_ver=$(gh release view --repo "$_pkg_repo" --json name --jq '.name')
+            _update_ver=$(gh release list --repo "${field[1]}" --exclude-drafts | grep "Latest" | rev | cut -f 2 | rev)
 
             if [[ "$_pkg_ver" != "$_update_ver" ]]; then
                 echo "$argc_name $_pkg_ver -> $_update_ver"
@@ -294,4 +294,4 @@ function remove {
     jq --arg name "$argc_name" 'del(.apps[] | select(.name == $name))' "$config" | sponge "$config"
 }
 
-eval "$(argc --argc-eval "$0" "$@")"
+eval "$(argc "$0" "$@")"
