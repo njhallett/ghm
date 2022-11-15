@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# @version 0.0.15
+# @version 0.0.16
 # @author Niall Hallett <njhallett@gmail.com>
 # @describe Manage github distro package release installs
 
@@ -57,6 +57,7 @@ function _ghm_install {
     local _ghm_install_repo=$1
     local _ghm_install_dryrun=$2
     local _ghm_install_all=$3
+    local _ghm_install_keep=$4
 
     if [[ -z "$_ghm_install_all" ]]; then
         readarray -t pkgs < <(gh release view --repo "$_ghm_install_repo" --json assets --jq '.assets.[].name' | grep "$(_ghm_arch)\.$(_ghm_pkg)$")
@@ -123,6 +124,10 @@ function _ghm_install {
                 ;;
         esac
 
+        if [[ -z "$_ghm_install_keep" ]]; then
+            rm "./${pkgs[$sel]}"
+        fi
+
         return $?
     fi
 }
@@ -148,6 +153,7 @@ function list {
 # @alias i
 # @flag -n --dryrun    don't actually install
 # @flag -a --all       show all download options
+# @flag -k --keep      keep downloaded package
 # @arg repo!           github <owner/repo> to download from
 function install {
 
@@ -158,7 +164,7 @@ function install {
     fi
 
     # shellcheck disable=SC2154
-    if ! _ghm_install "$argc_repo" "$argc_dryrun" "$argc_all"; then
+    if ! _ghm_install "$argc_repo" "$argc_dryrun" "$argc_all" "$argc_keep"; then
         echo "Install failed"
         exit 1
     fi
@@ -180,6 +186,7 @@ function install {
 # @alias u
 # @flag -n --dryrun    don't actually install
 # @flag -a --all       show all download options
+# @flag -k --keep      keep downloaded package(s)
 # @arg name            specific package to update
 function update {
     declare -a update_repo
@@ -244,7 +251,7 @@ function update {
 
     for i in "${!update_repo[@]}"; do
 
-        if ! _ghm_install "${update_repo[$i]}" "$argc_dryrun" "$argc_all"; then
+        if ! _ghm_install "${update_repo[$i]}" "$argc_dryrun" "$argc_all" "$argc_keep"; then
             echo "Update failed"
             continue
         fi
