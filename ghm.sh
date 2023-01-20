@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# @version 0.0.16
+# @version 0.0.17
 # @author Niall Hallett <njhallett@gmail.com>
 # @describe Manage github distro package release installs
 
@@ -61,7 +61,14 @@ function _ghm_install {
 
     if [[ -z "$_ghm_install_all" ]]; then
         readarray -t pkgs < <(gh release view --repo "$_ghm_install_repo" --json assets --jq '.assets.[].name' | grep "$(_ghm_arch)\.$(_ghm_pkg)$")
-    else
+
+        if [[ ${#pkgs[@]} -eq 0 ]]; then
+            readarray -t pkgs < <(gh release view --repo "$_ghm_install_repo" --json assets --jq '.assets.[].name' | grep "\.$(_ghm_pkg)$")
+        fi
+
+    fi
+
+    if [[ -n "$_ghm_install_all" || ${#pkgs[@]} -eq 0 ]]; then
         readarray -t pkgs < <(gh release view --repo "$_ghm_install_repo" --json assets --jq '.assets.[].name')
     fi
 
