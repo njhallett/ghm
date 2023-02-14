@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# @version 0.0.17
+# @version 0.0.18
 # @author Niall Hallett <njhallett@gmail.com>
 # @describe Manage github distro package release installs
 
@@ -8,25 +8,40 @@ config_dir="$HOME/.config/ghm"
 config_file="config.json"
 config="$config_dir/$config_file"
 
-command -v argc >/dev/null 2>&1 || { echo >&2 "I require argc but it's not installed.  Aborting."; exit 1; }
-command -v jq >/dev/null 2>&1 || { echo >&2 "I require jq but it's not installed.  Aborting."; exit 1; }
-command -v gh >/dev/null 2>&1 || { echo >&2 "I require gh but it's not installed.  Aborting."; exit 1; }
-command -v sudo >/dev/null 2>&1 || { echo >&2 "I require sudo but it's not installed.  Aborting."; exit 1; }
-command -v sponge >/dev/null 2>&1 || { echo >&2 "I require sponge but it's not installed.  Aborting."; exit 1; }
+command -v argc >/dev/null 2>&1 || {
+    echo >&2 "I require argc but it's not installed.  Aborting."
+    exit 1
+}
+command -v jq >/dev/null 2>&1 || {
+    echo >&2 "I require jq but it's not installed.  Aborting."
+    exit 1
+}
+command -v gh >/dev/null 2>&1 || {
+    echo >&2 "I require gh but it's not installed.  Aborting."
+    exit 1
+}
+command -v sudo >/dev/null 2>&1 || {
+    echo >&2 "I require sudo but it's not installed.  Aborting."
+    exit 1
+}
+command -v sponge >/dev/null 2>&1 || {
+    echo >&2 "I require sponge but it's not installed.  Aborting."
+    exit 1
+}
 
 function _ghm_arch {
     local _ghm_arch=''
 
     case $(uname -m) in
-        x86_64)
-            _ghm_arch="\(amd64\|x86_64\|64bit\)"
-            ;;
-        i*86)
-            _ghm_arch=386
-            ;;
-        armv7l)
-            _ghm_arch=armv6
-            ;;
+    x86_64)
+        _ghm_arch="\(amd64\|x86_64\|64bit\)"
+        ;;
+    i*86)
+        _ghm_arch=386
+        ;;
+    armv7l)
+        _ghm_arch=armv6
+        ;;
     esac
 
     echo "$_ghm_arch"
@@ -39,15 +54,15 @@ function _ghm_pkg {
     source /etc/os-release
 
     case $ID in
-        fedora)
-            _ghm_pkg=rpm
-            ;;
-        debian|raspbian)
-            _ghm_pkg=deb
-            ;;
-        alpine)
-            _ghm_pkg=apk
-            ;;
+    fedora)
+        _ghm_pkg=rpm
+        ;;
+    debian | raspbian)
+        _ghm_pkg=deb
+        ;;
+    alpine)
+        _ghm_pkg=apk
+        ;;
     esac
 
     echo "$_ghm_pkg"
@@ -74,34 +89,36 @@ function _ghm_install {
 
     case ${#pkgs[@]} in
 
-        0)
-            echo "No matches found"
-            return 1
-            ;;
-        1)
-            sel=0
-            ;;
-        *)
-            echo; echo "Multiple matches found, please select one:"; echo
-            declare -i i
+    0)
+        echo "No matches found"
+        return 1
+        ;;
+    1)
+        sel=0
+        ;;
+    *)
+        echo
+        echo "Multiple matches found, please select one:"
+        echo
+        declare -i i
 
-            for i in "${!pkgs[@]}"; do
-                echo " [$i] ${pkgs[$i]}"
-            done
+        for i in "${!pkgs[@]}"; do
+            echo " [$i] ${pkgs[$i]}"
+        done
 
-            sel=-1
+        sel=-1
 
-            while [[ $sel -eq -1 ]]; do
-                read -rp " Select an option: " sel
+        while [[ $sel -eq -1 ]]; do
+            read -rp " Select an option: " sel
 
-                if ! [[ "$sel" =~ [${!pkgs[*]}] ]]; then
-                    echo 'Invalid option'
-                    sel=-1
-                    continue
-                fi
+            if ! [[ "$sel" =~ [${!pkgs[*]}] ]]; then
+                echo 'Invalid option'
+                sel=-1
+                continue
+            fi
 
-            done
-            ;;
+        done
+        ;;
     esac
 
     echo "${pkgs[$sel]}"
@@ -116,19 +133,19 @@ function _ghm_install {
 
         case $(_ghm_pkg) in
 
-            rpm)
-                sudo dnf -y install "./${pkgs[$sel]}"
-                ;;
-            deb)
-                sudo apt install "./${pkgs[$sel]}"
-                ;;
-            apk)
-                sudo apk add --allow-untrusted "./${pkgs[$sel]}"
-                ;;
-            *)
-                echo "Unknown package manager"
-                return 1
-                ;;
+        rpm)
+            sudo dnf -y install "./${pkgs[$sel]}"
+            ;;
+        deb)
+            sudo apt install "./${pkgs[$sel]}"
+            ;;
+        apk)
+            sudo apk add --allow-untrusted "./${pkgs[$sel]}"
+            ;;
+        *)
+            echo "Unknown package manager"
+            return 1
+            ;;
         esac
 
         if [[ -z "$_ghm_install_keep" ]]; then
@@ -206,15 +223,15 @@ function update {
         readarray -t pkgs < <(jq -c '.apps[] | [.name,.repo,.version]' "$config" | sed 's/[]["]//g')
 
         for i in "${!pkgs[@]}"; do
-            read -ra field <<< "${pkgs[$i]}"
+            read -ra field <<<"${pkgs[$i]}"
             local _update_ver
             _update_ver=$(gh release list --repo "${field[1]}" --exclude-drafts | grep "Latest" | rev | cut -f 2 | rev)
 
             if [[ ${field[2]} != "$_update_ver" ]]; then
                 echo "${field[0]} ${field[2]} -> $_update_ver"
-                update_repo+=( "${field[1]}" )
-                update_name+=( "${field[0]}" )
-                update_ver+=( "$_update_ver" )
+                update_repo+=("${field[1]}")
+                update_name+=("${field[0]}")
+                update_ver+=("$_update_ver")
             fi
 
         done
@@ -231,9 +248,9 @@ function update {
 
             if [[ "$_pkg_ver" != "$_update_ver" ]]; then
                 echo "$argc_name $_pkg_ver -> $_update_ver"
-                update_repo+=( "$_pkg_repo" )
-                update_name+=( "$argc_name" )
-                update_ver+=( "$_update_ver" )
+                update_repo+=("$_pkg_repo")
+                update_name+=("$argc_name")
+                update_ver+=("$_update_ver")
             fi
         fi
 
@@ -248,9 +265,9 @@ function update {
     while true; do
         read -rp "Do you want to continue? [y/n] " yn
         case $yn in
-            [Yy]* ) break;;
-            [Nn]* ) exit 1;;
-            * ) echo "Please answer yes or no.";;
+        [Yy]*) break ;;
+        [Nn]*) exit 1 ;;
+        *) echo "Please answer yes or no." ;;
         esac
     done
 
@@ -284,19 +301,19 @@ function remove {
 
     case $(_ghm_pkg) in
 
-        rpm)
-            sudo dnf remove "$argc_name"
-            ;;
-        deb)
-            sudo apt remove "$argc_name"
-            ;;
-        apk)
-            sudo apk del "$argc_name"
-            ;;
-        *)
-            echo "Unknown package manager"
-            exit 1
-            ;;
+    rpm)
+        sudo dnf remove "$argc_name"
+        ;;
+    deb)
+        sudo apt remove "$argc_name"
+        ;;
+    apk)
+        sudo apk del "$argc_name"
+        ;;
+    *)
+        echo "Unknown package manager"
+        exit 1
+        ;;
     esac
 
     # shellcheck disable=SC2181
