@@ -1,12 +1,18 @@
 #!/bin/bash
 
-# @version 0.0.18
+set -o nounset
+set -o errexit
+set -o pipefail
+IFS=$'\n\t'
+
+# @version 0.0.19
 # @author Niall Hallett <njhallett@gmail.com>
 # @describe Manage github distro package release installs
 
-config_dir="$HOME/.config/ghm"
-config_file="config.json"
-config="$config_dir/$config_file"
+PROGRAM_NAME="ghm"
+CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/$PROGRAM_NAME"
+CONFIG_FILE="config.json"
+CONFIG="$CONFIG_DIR/$CONFIG_FILE"
 
 command -v argc >/dev/null 2>&1 || {
     echo >&2 "I require argc but it's not installed.  Aborting."
@@ -156,20 +162,20 @@ function _ghm_install {
     fi
 }
 
-if [[ ! -f "$config" ]]; then
+if [[ ! -f "$CONFIG" ]]; then
 
-    if [[ ! -d "$config_dir" ]]; then
-        mkdir -p "$config_dir"
+    if [[ ! -d "$CONFIG_DIR" ]]; then
+        mkdir -p "$CONFIG_DIR"
     fi
 
-    echo '{"apps":[]}' >"$config"
+    echo '{"apps":[]}' >"$CONFIG"
 fi
 
 # @cmd list installed apps
 # @alias l
 function list {
     echo
-    jq -r '["Name","Version","Repo"], (.apps | .[] | [.name, .version, .repo]) | @tsv' "$config" | column -t
+    jq -r '["Name","Version","Repo"], (.apps | .[] | [.name, .version, .repo]) | @tsv' "$CONFIG" | column -t
     echo
 }
 
@@ -203,7 +209,7 @@ function install {
 
     [[ -n "$argc_dryrun" ]] && exit 0
 
-    jq --arg repo "$argc_repo" --arg ver "$ver" --arg name "$name" '.apps[.apps | length] += {"name": $name, "repo": $repo, "version": $ver}' "$config" | sponge "$config"
+    jq --arg repo "$argc_repo" --arg ver "$ver" --arg name "$name" '.apps[.apps | length] += {"name": $name, "repo": $repo, "version": $ver}' "$CONFIG" | sponge "$CONFIG"
 }
 
 # @cmd update installed apps
@@ -213,14 +219,14 @@ function install {
 # @flag -k --keep      keep downloaded package(s)
 # @arg name            specific package to update
 function update {
-    declare -a update_repo
-    declare -a update_name
-    declare -a update_ver
+    declare -a update_repo=()
+    declare -a update_name=()
+    declare -a update_ver=()
     OIFS=$IFS
     IFS=','
 
     if [[ -z "$argc_name" ]]; then
-        readarray -t pkgs < <(jq -c '.apps[] | [.name,.repo,.version]' "$config" | sed 's/[]["]//g')
+        readarray -t pkgs < <(jq -c '.apps[] | [.name,.repo,.version]' "$CONFIG" | sed 's/[]["]//g')
 
         for i in "${!pkgs[@]}"; do
             read -ra field <<<"${pkgs[$i]}"
@@ -239,8 +245,8 @@ function update {
     else
         local _pkg_repo
         local _pkg_ver
-        _pkg_repo=$(jq --arg name "$argc_name" '.apps[] | select(.name == $name).repo' "$config" | sed 's/"//g')
-        _pkg_ver=$(jq --arg name "$argc_name" '.apps[] | select(.name == $name).version' "$config" | sed 's/"//g')
+        _pkg_repo=$(jq --arg name "$argc_name" '.apps[] | select(.name == $name).repo' "$CONFIG" | sed 's/"//g')
+        _pkg_ver=$(jq --arg name "$argc_name" '.apps[] | select(.name == $name).version' "$CONFIG" | sed 's/"//g')
 
         if [[ -n "$_pkg_repo" ]]; then
             local _update_ver
@@ -282,7 +288,7 @@ function update {
 
         [[ -n "$argc_dryrun" ]] && continue
 
-        jq --arg ver "${update_ver[$i]}" --arg name "${update_name[$i]}" '(.apps[] | select(.name == $name)).version |= $ver' "$config" | sponge "$config"
+        jq --arg ver "${update_ver[$i]}" --arg name "${update_name[$i]}" '(.apps[] | select(.name == $name)).version |= $ver' "$CONFIG" | sponge "$CONFIG"
     done
 }
 
@@ -292,7 +298,7 @@ function update {
 function remove {
     local _pkg_repo
 
-    _pkg_repo=$(jq --arg name "$argc_name" '.apps[] | select(.name == $name).repo' "$config" | sed 's/"//g')
+    _pkg_repo=$(jq --arg name "$argc_name" '.apps[] | select(.name == $name).repo' "$CONFIG" | sed 's/"//g')
 
     if [[ -z "$_pkg_repo" ]]; then
         echo "package not configured"
@@ -322,7 +328,12 @@ function remove {
         exit 1
     fi
 
-    jq --arg name "$argc_name" 'del(.apps[] | select(.name == $name))' "$config" | sponge "$config"
+    jq --arg name "$argc_name" 'del(.apps[] | select(.name == $name))' "$CONFIG" | sponge "$CONFIG"
 }
 
-eval "$(argc "$0" "$@")"
+declare argc_name=""
+declare argc_dryrun=""
+declare argc_all=""
+declare argc_keep=""
+
+eval "$(argc --argc-eval "$0" "$@")"
