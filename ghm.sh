@@ -5,8 +5,7 @@ set -o errexit
 set -o pipefail
 IFS=$'\n\t'
 
-# @version 0.0.19
-# @author Niall Hallett <njhallett@gmail.com>
+# @version 0.0.20
 # @describe Manage github distro package release installs
 
 PROGRAM_NAME="ghm"
@@ -269,11 +268,12 @@ function update {
     fi
 
     while true; do
-        read -rp "Do you want to continue? [y/n] " yn
-        case $yn in
-        [Yy]*) break ;;
-        [Nn]*) exit 1 ;;
-        *) echo "Please answer yes or no." ;;
+        read -n 1 -r -p "Do you want to continue? [Y/n] "
+        case $REPLY in
+            "") break ;;
+            [Yy]) break ;;
+            [Nn]) exit 1 ;;
+            *) echo "Please answer yes or no." ;;
         esac
     done
 
